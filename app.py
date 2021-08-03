@@ -15,12 +15,12 @@ load_dotenv(dotenv_path)
 forecast_url = "https://weather.tsukumijima.net/api/forecast/city/130010"
 train_url = "https://tetsudo.rti-giken.jp/free/delay.json"
 
-app = App(
+bolt_app = App(
     token = os.environ.get("XOXB_TOKEN"),
     signing_secret = os.environ.get("SIGNING_SECRET")
 )
 
-@app.message("天気")
+@bolt_app.message("天気")
 def message_forecast(message, say):
     r = requests.get(forecast_url)
     json = r.json()
@@ -80,7 +80,7 @@ def message_forecast(message, say):
         text=json["title"]
     )
 
-@app.message("運行情報")
+@bolt_app.message("運行情報")
 def message_train(message, say):
     r = requests.get(train_url)
     json = r.json()
@@ -117,7 +117,7 @@ def is_traindelayed(list, name):
             return f"{name} が遅延しています．詳しくは JR 東日本のホームページをご覧ください．"
     return f"現在，{name} に遅延情報はありません．"
 
-@app.shortcut("modal_checkin")
+@bolt_app.shortcut("modal_checkin")
 def modal_checkin(ack, body, client):
     ack()
     view = {
@@ -175,7 +175,7 @@ def modal_checkin(ack, body, client):
     }
     client.views_open(trigger_id = body['trigger_id'], view=view)
 
-@app.action("checkin")
+@bolt_app.action("checkin")
 def modal_checkin_update(ack, body, client):
     ack()
     dt_now = datetime.datetime.now()
@@ -240,7 +240,7 @@ def modal_checkin_update(ack, body, client):
         view = view
     )
 
-@app.action("checkout")
+@bolt_app.action("checkout")
 def modal_checkout_update(ack, body, client):
     ack()
     dt_now = datetime.datetime.now()
@@ -305,5 +305,18 @@ def modal_checkout_update(ack, body, client):
         hash = body['view']['hash'],
         view = view
     )
+
+# 本番環境用，flask で実行する．
+
+from flask import Flask, request
+from slack_bolt.adapter.flask import SlackRequestHandler
+
+app = Flask(__name__)
+handler = SlackRequestHandler(bolt_app)
+
+@app.route("/slack/events", methods=["POST"])
+def slack_events():
+    return handler.handle(request)
+
 if __name__ == '__main__':
-        app.start(port=3000)
+    app.run()
